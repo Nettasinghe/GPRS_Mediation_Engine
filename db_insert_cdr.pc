@@ -1,0 +1,256 @@
+
+//////////////////////////////////////////////////////////////////////
+// db_insert_cdr.pc
+// GPRS mediation module
+// Copyright Millennium IT Software 2002
+//////////////////////////////////////////////////////////////////////
+
+#define SQLCA_STORAGE_CLASS extern 
+#define ORACA_STORAGE_CLASS extern 
+
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sqlcpr.h>
+
+//#include "db.h"
+
+#ifndef ORA_PROC
+	#include "db.h"
+	#include "db_data_containers.h"
+#endif
+
+#define INSERT_SIZE 100
+#define BUF_LEN	50
+ 
+
+//#ifndef code_skip
+//#include <fstream>
+extern rated_cdr *gsm_cdr_block;
+//#endif
+
+
+
+
+void db_insert_rated_cdr(int cdr_count)
+{
+EXEC SQL BEGIN DECLARE SECTION;
+ 
+static struct db_cdr
+{
+		int		change_condition_sgsn;				//		NUMBER (3), 
+		char	ggsn_address[BUF_LEN];				//		VARCHAR2 (20),  
+		char	change_time_ggsn[BUF_LEN];			//		VARCHAR2 (20), 
+		int		cause_for_rec_closing;				//		NUMBER (20), 
+		int		ms_network_capability;				//		NUMBER (10), 
+  		int		data_downlink_ggsn;					//		NUMBER (30), 
+		char	imsi[BUF_LEN];						//		VARCHAR2 (20), 
+		int		record_sequence_no;					//		NUMBER (20), 
+		int		change_condition_ggsn;				//		NUMBER (3), 
+		char	served_pdp_address[BUF_LEN];		//		VARCHAR2 (20), 
+		char	region_code_id[BUF_LEN];			//		VARCHAR2 (5),----null 
+		char	qos_negotiated_sgsn[BUF_LEN];		//		VARCHAR2 (30), 
+		int		roam;								//		NUMBER (1), ---refer R3 - 1 for roaming, 0 for non-roaming
+		char	qos_requested_sgsn[BUF_LEN];		//		VARCHAR2 (30),  
+		char	network_group_id[BUF_LEN];			//		VARCHAR2 (5), --------null
+		int		location_area_code;					//		NUMBER (10), 
+		char	record_opening_time_ggsn[BUF_LEN];	//		VARCHAR2 (20), 
+		char	sgsn_address[BUF_LEN];				//		VARCHAR2 (20), 
+		char	qos_negotiated_ggsn[BUF_LEN];		//		VARCHAR2 (30), 
+		int		data_volume;						//		NUMBER (9), 
+		char	routing_area[BUF_LEN];				//		VARCHAR2 (20), 
+		int		duration;							//		NUMBER (20), 
+		char	uplink_downlink[BUF_LEN];			//		VARCHAR2 (10), 
+		int		cell_identity;						//		NUMBER (10), 
+		char	node_id[BUF_LEN];					//		VARCHAR2 (20), 
+		char	served_msisdn[BUF_LEN];				//		VARCHAR2 (30), 
+		int		charging_id;						//		NUMBER (20), 
+		char	access_point_name[BUF_LEN];			//		VARCHAR2 (50), 
+  		int		data_uplink_ggsn;					//		NUMBER (30), 
+  		char	change_time_sgsn[BUF_LEN];			//		VARCHAR2 (20), 
+		int		pdp_type;							//		NUMBER (3), 
+		int		record_type;						//		NUMBER (3), 
+		int		service_type_id;					//		NUMBER (3)    NOT NULL,    ------GPRS - 11 
+  		int		file_id; 							//		number(9)NOT NULL,
+		int		file_pos;							//		number(9)NOT NULL,
+		char	call_time[BUF_LEN];					//		DATE NOT NULL
+		char	route_group_id[BUF_LEN];      		//		VARCHAR2 (5),-------------- null
+  		char	day_type_id[BUF_LEN];				//      VARCHAR2 (5) ----- null
+} a[INSERT_SIZE]; 
+
+	int rows_to_insert;
+
+EXEC SQL END DECLARE SECTION;
+	rows_to_insert = cdr_count;
+
+	char buf[100]; 
+
+	for(int j=0; j<INSERT_SIZE; j++)
+	{
+		a[j].file_pos = 0;
+	}
+
+	for(int i=0; i<INSERT_SIZE; i++)
+	{
+		
+		a[i].file_id =  gsm_cdr_block[i].file_id; 
+		a[i].file_pos = gsm_cdr_block[i].file_pos;
+		
+		//sprintf(buf,"%04d%02d%02d%02d%02d%02d",d.year,d.month,d.day,t.hour,t.min,t.second);	
+		//strcpy(a[i].call_time, buf);
+
+		a[i].data_volume = gsm_cdr_block[i].data_volume;							//              NUMBER (9), 
+		a[i].record_type = gsm_cdr_block[i].recordType;							//                NUMBER (3), 
+		strcpy(a[i].uplink_downlink, gsm_cdr_block[i].type_of_call.substr(0,10).c_str());			//           VARCHAR2 (10), 
+		reng_date d=gsm_cdr_block[i].cdr_time_stamp.date;
+		reng_time t=gsm_cdr_block[i].cdr_time_stamp.time;
+		sprintf(buf,"%02d%s%02d%s%04d%s%02d%s%02d%s%02d",d.day,"/",d.month,"/",d.year," ",t.hour,":",t.min,":",t.second); 
+		
+		strcpy(a[i].call_time, buf);		//                 VARCHAR2 (14), 
+		sprintf(a[i].sgsn_address,"%d.%d.%d.%d",gsm_cdr_block[i].sgsnAddress.first_int,gsm_cdr_block[i].sgsnAddress.second_int,gsm_cdr_block[i].sgsnAddress.third_int,gsm_cdr_block[i].sgsnAddress.fourth_int);
+		sprintf(a[i].ggsn_address,"%d.%d.%d.%d",gsm_cdr_block[i].ggsnAddress.first_int,gsm_cdr_block[i].ggsnAddress.second_int,gsm_cdr_block[i].ggsnAddress.third_int,gsm_cdr_block[i].ggsnAddress.fourth_int);
+		sprintf(a[i].served_pdp_address,"%d.%d.%d.%d",gsm_cdr_block[i].servedPDPAddress.first_int,gsm_cdr_block[i].servedPDPAddress.second_int,gsm_cdr_block[i].servedPDPAddress.third_int,gsm_cdr_block[i].servedPDPAddress.fourth_int);
+	 
+		sprintf(a[i].qos_requested_sgsn,"%d,%d,%d,%d.%d",gsm_cdr_block[i].qosRequested_SGSN.reliability,gsm_cdr_block[i].qosRequested_SGSN.delay,gsm_cdr_block[i].qosRequested_SGSN.precedence,gsm_cdr_block[i].qosRequested_SGSN.peakThroughput,gsm_cdr_block[i].qosRequested_SGSN.meanThroughput);
+		sprintf(a[i].qos_negotiated_sgsn,"%d,%d,%d,%d.%d",gsm_cdr_block[i].qosNegotiated_SGSN.reliability,gsm_cdr_block[i].qosNegotiated_SGSN.delay,gsm_cdr_block[i].qosNegotiated_SGSN.precedence,gsm_cdr_block[i].qosNegotiated_SGSN.peakThroughput,gsm_cdr_block[i].qosNegotiated_SGSN.meanThroughput);
+		sprintf(a[i].qos_negotiated_ggsn,"%d,%d,%d,%d.%d",gsm_cdr_block[i].qosNegotiated_GGSN.reliability,gsm_cdr_block[i].qosNegotiated_GGSN.delay,gsm_cdr_block[i].qosNegotiated_GGSN.precedence,gsm_cdr_block[i].qosNegotiated_GGSN.peakThroughput,gsm_cdr_block[i].qosNegotiated_GGSN.meanThroughput);
+		
+		a[i].pdp_type = gsm_cdr_block[i].pdpType;								//                   NUMBER (3), 
+		a[i].change_condition_sgsn = gsm_cdr_block[i].changeCondition_SGSN;					//      NUMBER (3), 
+		a[i].change_condition_ggsn = gsm_cdr_block[i].changeCondition_GGSN;					//      NUMBER (3), 
+		strcpy(a[i].change_time_sgsn, gsm_cdr_block[i].changeTime_SGSN);		//          VARCHAR2 (20), 
+		strcpy(a[i].change_time_ggsn, gsm_cdr_block[i].changeTime_GGSN);			//          VARCHAR2 (20), 
+		strcpy(a[i].record_opening_time_ggsn, gsm_cdr_block[i].recordOpeningTime_GGSN);	//  VARCHAR2 (20), 
+		a[i].ms_network_capability = gsm_cdr_block[i].msNetworkCapability;					//      NUMBER (10), 
+		a[i].location_area_code = gsm_cdr_block[i].locationAreaCode;						//         NUMBER (10), 
+		a[i].cell_identity = gsm_cdr_block[i].cellIdentity;							//              NUMBER (10), 
+		a[i].data_uplink_ggsn = gsm_cdr_block[i].dataUplink_GGSN;						//           NUMBER (30), 
+		a[i].data_downlink_ggsn = gsm_cdr_block[i].dataDownlink_GGSN;						//         NUMBER (30), 
+		a[i].charging_id = gsm_cdr_block[i].chargingID;							//                NUMBER (20), 
+		a[i].duration = gsm_cdr_block[i].duration;								//                   NUMBER (20), 
+		a[i].cause_for_rec_closing = gsm_cdr_block[i].causeForRecClosing;					//      NUMBER (20), 
+		a[i].record_sequence_no = gsm_cdr_block[i].recordSequenceNumber;						//         NUMBER (20), 
+		strcpy(a[i].routing_area, gsm_cdr_block[i].routingArea);				//              VARCHAR2 (20), 
+		strcpy(a[i].access_point_name, gsm_cdr_block[i].accessPointName);			//         VARCHAR2 (50), 
+		strcpy(a[i].node_id, gsm_cdr_block[i].nodeID);					//                  VARCHAR2 (20), 
+		strcpy(a[i].served_msisdn, gsm_cdr_block[i].servedMSISDN);				//             VARCHAR2 (30), 
+		
+		strcpy(a[i].imsi, gsm_cdr_block[i].servedIMSI);	
+
+		a[i].roam = gsm_cdr_block[i].roam;
+		a[i].service_type_id = 20;
+		
+		// null stuff
+		strcpy(a[i].region_code_id, "");
+		strcpy(a[i].network_group_id, "");
+		strcpy(a[i].route_group_id, "");
+		strcpy(a[i].day_type_id, "");
+	} 
+
+// ------------------
+/*
+
+	cout<<" ----------------- rows to insert "<<rows_to_insert<<endl;
+	//for(int k=0; k<INSERT_SIZE; k++)
+	for(int k=0; k<2; k++)
+	{
+		cout<<" "<<k<<"="<<a[k].file_pos ;
+	}
+
+	for(int l=0; l<rows_to_insert; l++)
+	//for(int l=0; l<2; l++)
+	{
+		cout<<l<<" change_condition_sgsn = "<<a[l].change_condition_sgsn	<<"|"<<" n(3)"<<endl; 							
+		cout<<l<<" ggsn_address			 = "<<a[l].ggsn_address				<<"|"<<" v(20)"<<endl;							
+		cout<<l<<" change_time_ggsn		 = "<<a[l].change_time_ggsn			<<"|"<<" v(20)"<<endl;								
+		cout<<l<<" cause_for_rec_closing = "<<a[l].cause_for_rec_closing	<<"|"<<" n(20)"<<endl;						
+		cout<<l<<" ms_network_capability = "<<a[l].ms_network_capability	<<"|"<<" n(10)"<<endl;								
+		cout<<l<<" data_downlink_ggsn	 = "<<a[l].data_downlink_ggsn		<<"|"<<" n(30)"<<endl;								
+		cout<<l<<" imsi					 = "<<a[l].imsi						<<"|"<<" v(20)"<<endl; 				
+		cout<<l<<" record_sequence_no	 = "<<a[l].record_sequence_no		<<"|"<<" n(20)"<<endl;								
+		cout<<l<<" change_condition_ggsn = "<<a[l].change_condition_ggsn	<<"|"<<" n(3)"<<endl;				
+		cout<<l<<" served_pdp_address	 = "<<a[l].served_pdp_address		<<"|"<<" v(20)"<<endl;					
+		cout<<l<<" region_code_id		 = "<<a[l].region_code_id			<<"|"<<" v(5)--null"<<endl;					
+		cout<<l<<" qos_negotiated_sgsn	 = "<<a[l].qos_negotiated_sgsn		<<"|"<<" v(30)"<<endl;							
+		cout<<l<<" roam					 = "<<a[l].roam						<<"|"<<" n(1)"<<endl; 					
+		cout<<l<<" qos_requested_sgsn	 = "<<a[l].qos_requested_sgsn		<<"|"<<" v(30)"<<endl;			
+		cout<<l<<" network_group_id		 = "<<a[l].network_group_id			<<"|"<<" v(5)--null"<<endl; 						
+		cout<<l<<" location_area_code	 = "<<a[l].location_area_code		<<"|"<<" n(10)"<<endl;					
+		cout<<l<<" record_opening_time_ggsn="<<a[l].record_opening_time_ggsn <<"|"<<" v(20)"<<endl;						
+		cout<<l<<" sgsn_address			 = "<<a[l].sgsn_address				<<"|"<<" v(20)"<<endl;								
+		cout<<l<<" qos_negotiated_ggsn	 = "<<a[l].qos_negotiated_ggsn		<<"|"<<" v(30)"<<endl;							
+		cout<<l<<" data_volume			 = "<<a[l].data_volume				<<"|"<<" n(9)"<<endl;							
+		cout<<l<<" routing_area			 = "<<a[l].routing_area				<<"|"<<" v(20)"<<endl;
+		cout<<l<<" duration				 = "<<a[l].duration					<<"|"<<" n(20)"<<endl;				
+		cout<<l<<" uplink_downlink		 = "<<a[l].uplink_downlink			<<"|"<<" v(10)"<<endl;							
+		cout<<l<<" cell_identity		 = "<<a[l].cell_identity			<<"|"<<" n(10)"<<endl;							
+		cout<<l<<" node_id				 = "<<a[l].node_id					<<"|"<<" v(20)"<<endl;									
+		cout<<l<<" served_msisdn		 = "<<a[l].served_msisdn			<<"|"<<" v(30)"<<endl; 									
+		cout<<l<<" charging_id			 = "<<a[l].charging_id				<<"|"<<" n(20)"<<endl;
+		cout<<l<<" access_point_name	 = "<<a[l].access_point_name		<<"|"<<" v(50)"<<endl;						
+		cout<<l<<" data_uplink_ggsn		 = "<<a[l].data_uplink_ggsn			<<"|"<<" n(30)"<<endl;						
+		cout<<l<<" change_time_sgsn		 = "<<a[l].change_time_sgsn			<<"|"<<" v(20)"<<endl;						
+		cout<<l<<" pdp_type				 = "<<a[l].pdp_type					<<"|"<<" n(3)"<<endl;						
+		cout<<l<<" record_type			 = "<<a[l].record_type				<<"|"<<" n(3)"<<endl;						
+		cout<<l<<" service_type_id		 = "<<a[l].service_type_id			<<"|"<<" n(3)- not null"<<endl;
+		cout<<l<<" file_id				 = "<<a[l].file_id					<<"|"<<" n(9)- not null"<<endl;						
+		cout<<l<<" file_pos				 = "<<a[l].file_pos					<<"|"<<" n(9)- not null"<<endl;						
+		cout<<l<<" call_time			 = "<<a[l].call_time				<<"|"<<" date - not null"<<endl;						
+		cout<<l<<" route_group_id		 = "<<a[l].route_group_id			<<"|"<<" v(5) - null"<<endl;						
+		cout<<l<<" day_type_id			 = "<<a[l].day_type_id				<<"|"<<" v(5) - null"<<endl;						
+	}
+*/
+//------
+
+EXEC SQL WHENEVER SQLERROR DO db_error("ORACLE error:");
+EXEC SQL FOR :rows_to_insert INSERT INTO DYN_4_UDR(
+		change_condition_sgsn,
+		ggsn_address,  
+		change_time_ggsn,
+		cause_for_rec_closing,
+		ms_network_capability,
+  		data_downlink_ggsn,
+		imsi,
+		record_sequance_no,
+		change_condition_ggsn,
+		served_pdp_address,
+		region_code_id,
+		qos_negotiated_sgsn,
+		roam,
+		qos_requested_sgsn,
+		network_group_id,
+		location_area_code,
+		record_opening_time_ggsn,
+		sgsn_address,
+		qos_negotiated_ggsn,
+		data_volume,
+		routing_area,
+		duration,
+		uplink_downlink,
+		cell_identity,
+		node_id,
+		served_msisdn,
+		charging_id,
+		access_point_name,
+  		data_uplink_ggsn,
+  		change_time_sgsn,
+		pdp_type, 
+		record_type,
+		service_type_id,
+  		file_id,
+		file_pos,
+		call_time,
+		route_group_id,
+  		day_type_id)
+		VALUES (:a);
+
+EXEC SQL COMMIT;
+}
+
+
+
+
+
+
+

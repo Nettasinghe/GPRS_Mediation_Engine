@@ -1,0 +1,66 @@
+
+//////////////////////////////////////////////////////////////////////
+// db.pc
+// GPRS mediation module
+// Copyright Millennium IT Software 2002
+//////////////////////////////////////////////////////////////////////
+
+#include <sqlca.h>
+
+#ifndef ORA_PROC
+	#include "db.h"
+	#include <iostream>
+#endif
+
+#pragma warning(disable:4786)
+using namespace std;
+
+/*
+void sql_error(char *msg)
+{
+    cout << endl << msg << endl;
+    sqlca.sqlerrm.sqlerrmc[sqlca.sqlerrm.sqlerrml] = '\0';
+    oraca.orastxt.orastxtc[oraca.orastxt.orastxtl] = '\0';
+    oraca.orasfnm.orasfnmc[oraca.orasfnm.orasfnml] = '\0';
+    cout << sqlca.sqlerrm.sqlerrmc << endl;
+    cout << "in " << oraca.orastxt.orastxtc << endl;
+    cout << "on line " << oraca.oraslnr << " of " << oraca.orasfnm.orasfnmc
+         << endl << endl;
+
+  //-- Roll back any pending changes and disconnect from Oracle.
+
+    EXEC SQL ROLLBACK RELEASE;
+    exit(1);
+}
+*/
+
+void db_error(char* zErrorMsg)
+{
+	EXEC SQL WHENEVER SQLERROR CONTINUE;
+	cout << endl << zErrorMsg << endl<<flush;
+	cout << sqlca.sqlerrm.sqlerrmc << endl<<flush;
+	exit(0);
+}
+
+void db_login(char* zLoginString)
+{
+	EXEC SQL WHENEVER SQLERROR DO db_error("ORACLE error:");
+	//EXEC SQL WHENEVER SQLERROR DO sql_error("ORACLE error--");
+
+	EXEC SQL BEGIN DECLARE SECTION;
+		char* z_LoginString;
+	EXEC SQL END DECLARE SECTION;	
+
+	z_LoginString = zLoginString;
+	EXEC SQL CONNECT :z_LoginString;
+	cout<<"\nUser Log To the DataBase"<<endl<<endl;
+	EXEC SQL ALTER SESSION SET NLS_DATE_FORMAT="DD/MM/YYYY HH24:MI:SS"; 
+}
+
+void db_logout()
+{
+	EXEC SQL WHENEVER SQLERROR DO db_error("ORACLE error:");
+	EXEC SQL COMMIT WORK RELEASE;
+	cout<<"\nDisconnect from oracle "<<endl;
+}
+

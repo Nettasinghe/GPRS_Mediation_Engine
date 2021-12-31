@@ -1,0 +1,151 @@
+
+//////////////////////////////////////////////////////////////////////
+// db_cdr_files.pc
+// GPRS mediation module
+// Copyright Millennium IT Software 2002
+//////////////////////////////////////////////////////////////////////
+
+#define SQLCA_STORAGE_CLASS extern 
+#define ORACA_STORAGE_CLASS extern 
+
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sqlcpr.h>
+
+
+#ifndef ORA_PROC
+	#include "db.h"
+	#include "cdr.h"
+#endif
+
+#define BUF_L		102
+#define BUF_LENTH	20
+#define FETCH_SIZE	10
+
+extern int global_cdr_count;
+
+
+
+// get cdr files
+void cdr_files::db_read()
+{
+	EXEC SQL BEGIN DECLARE SECTION;
+	struct cdr_file_t
+	{ 
+		char file_name[BUF_L];			// varchar2(123)
+		int file_id;					// called id_no in table number(9)
+	} a[FETCH_SIZE]; 
+	int rows_to_fetch, rows_before, rows_this_time; 
+
+	EXEC SQL END DECLARE SECTION;
+
+	int i;
+
+	rows_to_fetch = FETCH_SIZE;		// number of rows in each "batch"  
+	rows_before = 0;				// previous value of sqlerrd[2]   
+	rows_this_time = FETCH_SIZE;
+	 
+	EXEC SQL WHENEVER SQLERROR DO db_error("ORACLE error:");
+    EXEC SQL DECLARE c_cdr_file CURSOR FOR 
+	SELECT	FILE_NAME,  CDR_FILE_ID_NO
+//	FROM	cdr_dump_files
+	FROM	sys_gprs_dump_files
+	WHERE DECODED_DATE IS NULL;
+       
+    EXEC SQL OPEN c_cdr_file; 
+	EXEC SQL WHENEVER NOT FOUND CONTINUE;
+	EXEC SQL WHENEVER SQLERROR DO db_error("ORACLE error:"); 
+
+	while (rows_this_time == rows_to_fetch) 
+	{ 
+		EXEC SQL FETCH c_cdr_file INTO :a; 		 
+		rows_this_time = sqlca.sqlerrd[2] - rows_before; 
+		rows_before = sqlca.sqlerrd[2]; 
+		//printf(" this=%d before=%d to_fetch=%d\n", rows_this_time, rows_before, rows_to_fetch);
+
+
+		cdr_file_statistics cd;
+		cd.init();
+		for(i=0; i<rows_this_time; i++)
+		{
+			cd.file_id = a[i].file_id;			
+			insert(a[i].file_name, cd);
+		}
+	} 
+
+    EXEC SQL CLOSE c_cdr_file; 
+ 
+    printf("\n %d  cdr files loaded.\n\n",rows_before);
+}
+
+
+
+void cdr_files::db_update(cdr_file_statistics s)
+{
+	EXEC SQL BEGIN DECLARE SECTION;
+	struct cdr_file_t
+	{ 
+		 int valid_cdr_count;					//  number(7)
+		 int error_count;						//	number(7)
+		 int bytes_read;						//	number(9)
+		 char first_cdr_date[BUF_LENTH];				//	varchar2(14)
+		 char last_cdr_date[BUF_LENTH];				//	varchar2(14)
+		 int rating_duration;
+		 char rating_start_date[BUF_LENTH];	//	varchar2(14)
+
+		 int id_no;						//	number(9)
+ 	} a; 
+
+	EXEC SQL END DECLARE SECTION;
+
+	EXEC SQL WHENEVER NOT FOUND GOTO nofile;
+
+//#ifndef code_skip
+
+	 //cout << "a.id_no :" <<a.id_no<<endl;
+	 //cout <<"s.file_id : "<<s.file_id<<endl;
+	 a.id_no = s.file_id;
+	 //cout << "a.id_no :" <<a.id_no<<endl;
+	 //cout <<"s.file_id : "<<s.file_id<<endl;
+
+	 //a.valid_cdr_count = s.valid_cdr_count;
+	 a.valid_cdr_count = global_cdr_count;
+	 a.error_count = s.error_count;
+	 a.bytes_read = s.bytes_read;
+	 strcpy(a.first_cdr_date, s.first_cdr_date.c_str());
+	 strcpy(a.last_cdr_date, s.last_cdr_date.c_str());
+	 a.rating_duration = s.rating_duration;
+	 strcpy(a.rating_start_date, s.rating_start_date.c_str());
+	 
+	 	
+//#endif
+
+	 EXEC SQL WHENEVER SQLERROR DO db_error("ORACLE error:");
+	 EXEC SQL	
+//	 UPDATE cdr_dump_files 
+// 	 UPDATE cdr_dump_files2  
+ 	 //UPDATE cdr_dump_files3
+	 UPDATE sys_gprs_dump_files
+
+	 SET 
+		valid_cdr_count			= :a.valid_cdr_count, 
+		error_count				= :a.error_count,
+		bytes_read				= :a.bytes_read,
+		first_cdr_date			= to_date(:a.first_cdr_date,'YYYYMMDDHH24MISS'),
+		last_cdr_date			= to_date(:a.last_cdr_date,'YYYYMMDDHH24MISS'),
+		//rating_duration			= :a.rating_duration,
+		//decoded_date		= to_date(:a.rating_start_date,'YYYYMMDDHH24MISS')
+		decoded_date		= SYSDATE
+	 WHERE cdr_file_id_no  = :a.id_no;
+
+	 EXEC SQL COMMIT;
+ 
+    printf("\n cdr file id=%d log updated.\n\n", s.file_id);
+	return;
+nofile:
+	printf("\n <ERROR> file id = %d  not found to update.\n\n", s.file_id);
+}
+
+
